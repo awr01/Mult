@@ -3,6 +3,10 @@
 #include <cstdint>
 #include <stdexcept>
 #include <iostream>
+#include <chrono>
+#include <functional>
+
+using namespace std::chrono;
 
 // =============================================================================================================================================================
 // template < int Size > struct Variable;
@@ -41,7 +45,7 @@ struct Variable
     return lRet;
   }
   
-  Variable< 1 > operator() ( const int& index ) const __attribute__((always_inline))
+  Variable< 1 > operator() ( const int& index ) const __attribute__((always_inline,flatten))
   {
     Variable< 1 > lRet;
     lRet.value[0] = value[index];
@@ -56,16 +60,23 @@ struct Variable
     return lRet;
   }
   
-  // Variable< Size >& operator= ( const Variable< Size >& aOther ) __attribute__((always_inline))
-  // {
-    // for ( auto lDest( value.begin() ) , lSrc( aOther.value.begin() ) ; lDest != value.end() ; ++lDest , ++lSrc ) **lDest = **lSrc;   
-    // return *this;
-  // }
+  Variable< Size >& operator= ( uint64_t aValue ) __attribute__((always_inline,flatten))
+  {
+    if( Size > 64 ) throw std::runtime_error( "Variable size exceeded 64-bits" );
+    #pragma GCC unroll 65534
+    #pragma GCC ivdep     
+    for( int i(0); i!=Size; ++i ){ 
+      value[i]->value = bool( aValue & 0x1 );
+      aValue >>= 1;
+    }      
+    if( aValue ) throw std::runtime_error( "Value does not fit size" );    
+    return *this;
+  }
   
-  T* operator[] ( const std::size_t& i ) __attribute__((always_inline))
+  T* operator[] ( const std::size_t& i ) __attribute__((always_inline,flatten))
   { return value.at(i); }
   
-  const T* operator[] ( const std::size_t& i ) const __attribute__((always_inline))
+  const T* operator[] ( const std::size_t& i ) const __attribute__((always_inline,flatten))
   { return value.at(i); }
   
   std::array< T* , Size > value;
@@ -120,7 +131,7 @@ template < int Size >
 struct Not : public NonTrivial
 {
   Not( const Variable< Size >&  aA ) : A( aA ) , P( 0 ) {}
-  void Forward() __attribute__((always_inline)) { 
+  void Forward() __attribute__((always_inline,flatten)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
     for( auto p(P.value.begin()) , a(A.value.begin()) ; p!=P.value.end() ; ++p , ++a ) (**p).value = not (**a).value; 
@@ -134,7 +145,7 @@ template < int Size >
 struct And : public NonTrivial
 {
   And( const Variable< Size >&  aA , const Variable< Size >& aB ) : A( aA ) , B( aB ) , P( 0 ) {}
-  void Forward() __attribute__((always_inline)) { 
+  void Forward() __attribute__((always_inline,flatten)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
     for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = (**a).value and (**b).value; 
@@ -148,7 +159,7 @@ template < int Size >
 struct Or : public NonTrivial
 {
   Or( const Variable< Size >&  aA , const Variable< Size >& aB ) : A( aA ) , B( aB ) , P( 0 ) {}
-  void Forward() __attribute__((always_inline)) { 
+  void Forward() __attribute__((always_inline,flatten)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
     for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = (**a).value or (**b).value; 
@@ -162,7 +173,7 @@ template < int Size >
 struct Xor : public NonTrivial
 {
   Xor( const Variable< Size >&  aA , const Variable< Size >& aB ) : A( aA ) , B( aB ) , P( 0 ) {}
-  void Forward() __attribute__((always_inline)) { 
+  void Forward() __attribute__((always_inline,flatten)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
     for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = (**a).value xor (**b).value; 
@@ -176,7 +187,7 @@ template < int Size >
 struct Xnor : public NonTrivial
 {
   Xnor( const Variable< Size >&  aA , const Variable< Size >& aB ) : A( aA ) , B( aB ) , P( 0 ) {}
-  void Forward() __attribute__((always_inline)) { 
+  void Forward() __attribute__((always_inline,flatten)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
     for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = not( (**a).value xor (**b).value ); 
@@ -189,7 +200,7 @@ struct Xnor : public NonTrivial
 template < int Size >
 struct Mux : public NonTrivial {
   Mux( const Variable< 1 >& x , const Variable< Size >& a , const Variable< Size >& b ) : X(x) , A(a) , B(b) , P( 0 ) {}
-  void Forward() __attribute__((always_inline)) { 
+  void Forward() __attribute__((always_inline,flatten)) { 
     const bool lSwitch( X[0]->value );
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
@@ -203,7 +214,7 @@ struct Mux : public NonTrivial {
 template < int Size >
 struct Fanout : public NonTrivial {
   Fanout( const Variable< 1 >& x ) : X(x) , P( 0 ) {}  
-  void Forward() __attribute__((always_inline)) { 
+  void Forward() __attribute__((always_inline,flatten)) { 
     const bool lValue( X[0]->value );
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
@@ -233,10 +244,10 @@ struct Add
     P( AdderLo.P.slice( 0 , SizeLo ) & MuxP.P ), Q( AdderLo.Q.slice( 0 , SizeLo ) & MuxQ.P )
   {}
   
-  // void Forward() __attribute__((always_inline))
-  // {   
-    // AdderLo.Forward(), AdderHi.Forward(), MuxP.Forward(), MuxQ.Forward();  
-  // }
+  void Forward() __attribute__((always_inline,flatten))
+  {   
+    AdderLo.Forward(), AdderHi.Forward(), MuxP.Forward(), MuxQ.Forward();  
+  }
     
   Add< SizeLo > AdderLo;
   Add< SizeHi > AdderHi;
@@ -256,10 +267,10 @@ struct Add< 1 >
     P( mXor.P & mAnd.P ) , Q( mXnor.P & mOr.P )
   {}
   
-  // void Forward() __attribute__((always_inline))
-  // {
-    // mFanoutA.Forward(), mFanoutB.Forward(), mXor.Forward(), mAnd.Forward(), mXnor.Forward(), mOr.Forward();    
-  // }
+  void Forward() __attribute__((always_inline,flatten))
+  {
+    mFanoutA.Forward(), mFanoutB.Forward(), mXor.Forward(), mAnd.Forward(), mXnor.Forward(), mOr.Forward();    
+  }
 
   Fanout<4> mFanoutA , mFanoutB;
   Xor<1> mXor;
@@ -287,10 +298,10 @@ struct Mult
     P( MultLo.P.slice(0,SizeALo) & Adder.P.slice(0,SumSize) )
   {}    
   
-  // void Forward() __attribute__((always_inline))
-  // {   
-    // MultLo.Forward(), MultHi.Forward(), Adder.Forward();
-  // }
+  void Forward() __attribute__((always_inline,flatten))
+  {   
+    MultLo.Forward(), MultHi.Forward(), Adder.Forward();
+  }
   
   Mult< SizeB , SizeALo > MultLo;
   Mult< SizeB , SizeAHi > MultHi;  
@@ -312,79 +323,28 @@ struct Mult< 1 , 1 > : public And<1>
 // =============================================================================================================================================================
 
 
-
-
-
 // =============================================================================================================================================================
 int main()
 { 
-
-
-  Variable< 8 > A( 0 );
-  Variable< 8 > B( 0 );
-  // Add< 8 > lAdder( A , B );
+  Variable< 8 > A( 0 ) , B( 0 );
   Mult< 8,8 > lMult( A , B );
 
-
-  for( uint64_t i(0); i!=255; ++i )
-  {
-    for( uint64_t j(0); j!=255; ++j )
-    {
-
-      #pragma GCC unroll 65534
-      #pragma GCC ivdep 
-      for( int x(0); x!=8; ++x ){ 
-        A.value[x]->value = bool( (i>>x) & 0x1 );
-        B.value[x]->value = bool( (j>>x) & 0x1 );
-      }      
-      
+  { auto start = high_resolution_clock::now(); \
+    for( uint64_t x(0); x!=20; ++x ) for( uint64_t i(0); i!=255; ++i ) for( uint64_t j(0); j!=255; ++j ) {
+      A = i; B = j;
       NonTrivial::Run();
-      // lAdder.Forward();  
-      // std::cout << i << " " << j << " " << uint64_t(lAdder.P) << std::endl;
-      // if( (i+j) != int64_t(lAdder.P) ) throw std::runtime_error( "Value mismatch" );
-
-      // lMult.Forward();  
-      // // std::cout << i << " " << j << " " << uint64_t(lMult.P)  << " | " << (i*j) << "\n" << std::endl;
-      if( (i*j) != int64_t(lMult.P) ) throw std::runtime_error( "Value mismatch" );
     }
+    std::cout << "Using global Run     : " << duration_cast<microseconds>( high_resolution_clock::now() - start).count()/1000000.0 << "s" << std::endl;
   }
-  
 
+  { auto start = high_resolution_clock::now(); \
+    for( uint64_t x(0); x!=20; ++x ) for( uint64_t i(0); i!=255; ++i ) for( uint64_t j(0); j!=255; ++j ) {
+      A = i; B = j;
+      lMult.Forward();
+    }
+    std::cout << "Using recursive calls: " << duration_cast<microseconds>( high_resolution_clock::now() - start).count()/1000000.0 << "s" << std::endl;
+  }
 
-  // Variable< 1 > A( 1 );
-  // Variable< 1 > B( 0 );
-  
-  // Add< 1 > lAdder( A , B );
-  // lAdder.Forward();  
-
-  // // std::cout << lAdder.P << std::endl;
-
-  
-  // Variable< 2 > Q( 2 );
-  // for( int i(0); i!=2; ++i ) lAdder.P[i].gradient = int( Q[i].value ) - int( lAdder.P[i].value );
-  // // std::cout << lAdder.P << std::endl;
-
-  // // std::cout << A << " | " << B << std::endl;
-
-  // // lAdder.Backward();
-  
-  // std::cout << "=> " << A << " | " << B << std::endl;
-  
-  
-  // // Gradient< 5 > D = Q - lAdder.P;
-
-  // // std::cout << "Target = " << Q << std::endl;
-  // // std::cout << "Value  = " << lAdder.P << std::endl;
-  // // // std::cout << "Delta  = " << D << std::endl;
-  
-
-  // // Mult< 4,4 > lMult( A , B );
-  // // lMult.Forward();  
-  // // std::cout << i << " * " << j << " = " << (i*j) << " | " << int64_t(lMult.P) << std::endl;
-  // // if( (i*j) != int64_t(lMult.P) ) throw std::runtime_error( "Value mismatch" );
-      
-
-  
 };
 // =============================================================================================================================================================
 
