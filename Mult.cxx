@@ -123,7 +123,7 @@ struct Not : public NonTrivial
   void Forward() __attribute__((always_inline)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
-    for( int i(0); i!=Size; ++i ) P[i]->value = not A[i]->value; 
+    for( auto p(P.value.begin()) , a(A.value.begin()) ; p!=P.value.end() ; ++p , ++a ) (**p).value = not (**a).value; 
   }    
   Variable< Size > A , P;
 };
@@ -137,7 +137,7 @@ struct And : public NonTrivial
   void Forward() __attribute__((always_inline)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
-    for( int i(0); i!=Size; ++i ) P[i]->value = A[i]->value and B[i]->value; 
+    for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = (**a).value and (**b).value; 
   }    
   Variable< Size > A , B , P;
 };
@@ -151,7 +151,7 @@ struct Or : public NonTrivial
   void Forward() __attribute__((always_inline)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
-    for( int i(0); i!=Size; ++i ) P[i]->value = A[i]->value or B[i]->value; 
+    for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = (**a).value or (**b).value; 
   }    
   Variable< Size > A , B , P;
 };
@@ -165,7 +165,7 @@ struct Xor : public NonTrivial
   void Forward() __attribute__((always_inline)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
-    for( int i(0); i!=Size; ++i ) P[i]->value = A[i]->value xor B[i]->value; 
+    for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = (**a).value xor (**b).value; 
   }    
   Variable< Size > A , B , P;
 };
@@ -179,7 +179,7 @@ struct Xnor : public NonTrivial
   void Forward() __attribute__((always_inline)) { 
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
-    for( int i(0); i!=Size; ++i ) P[i]->value = not( A[i]->value xor B[i]->value ); 
+    for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = not( (**a).value xor (**b).value ); 
   }    
   Variable< Size > A , B , P;
 };
@@ -190,9 +190,10 @@ template < int Size >
 struct Mux : public NonTrivial {
   Mux( const Variable< 1 >& x , const Variable< Size >& a , const Variable< Size >& b ) : X(x) , A(a) , B(b) , P( 0 ) {}
   void Forward() __attribute__((always_inline)) { 
+    const bool lSwitch( X[0]->value );
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
-    for( int i(0); i!=Size; ++i ) P[i]->value = X[0]->value ? A[i]->value : B[i]->value; 
+    for( auto p(P.value.begin()) , a(A.value.begin()) , b(B.value.begin()) ; p!=P.value.end() ; ++p , ++a , ++b ) (**p).value = lSwitch ? (**a).value : (**b).value; 
   }    
   Variable< 1 > X; Variable< Size > A , B , P;  
 };
@@ -203,9 +204,10 @@ template < int Size >
 struct Fanout : public NonTrivial {
   Fanout( const Variable< 1 >& x ) : X(x) , P( 0 ) {}  
   void Forward() __attribute__((always_inline)) { 
+    const bool lValue( X[0]->value );
     #pragma GCC unroll 65534
     #pragma GCC ivdep 
-    for( int i(0); i!=Size; ++i ) P[i]->value = X[0]->value; 
+    for( auto p(P.value.begin()) ; p!=P.value.end() ; ++p ) (**p).value = lValue; 
   }    
   Variable< 1 > X; Variable< Size > P;  
 };
