@@ -337,13 +337,13 @@ int main()
     std::cout << "Using global Run     : " << duration_cast<microseconds>( high_resolution_clock::now() - start).count()/1000000.0 << "s" << std::endl;
   }
 
-  { auto start = high_resolution_clock::now(); \
-    for( uint64_t x(0); x!=20; ++x ) for( uint64_t i(0); i!=255; ++i ) for( uint64_t j(0); j!=255; ++j ) {
-      A = i; B = j;
-      lMult.Forward();
-    }
-    std::cout << "Using recursive calls: " << duration_cast<microseconds>( high_resolution_clock::now() - start).count()/1000000.0 << "s" << std::endl;
-  }
+  // { auto start = high_resolution_clock::now(); \
+    // for( uint64_t x(0); x!=20; ++x ) for( uint64_t i(0); i!=255; ++i ) for( uint64_t j(0); j!=255; ++j ) {
+      // A = i; B = j;
+      // lMult.Forward();
+    // }
+    // std::cout << "Using recursive calls: " << duration_cast<microseconds>( high_resolution_clock::now() - start).count()/1000000.0 << "s" << std::endl;
+  // }
 
 };
 // =============================================================================================================================================================
